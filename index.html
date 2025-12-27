@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Баланс на рейле</title>
+    <title>Баланс на рейле 3D</title>
     <style>
         body {
             margin: 0;
@@ -40,7 +40,9 @@
             border: none;
             border-radius: 15px;
             user-select: none;
-            active: { opacity: 0.7; }
+        }
+        .btn:active {
+            opacity: 0.7;
         }
         #info {
             text-align: center;
@@ -72,11 +74,12 @@
             color: white;
             border: none;
             border-radius: 15px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <div id="info">Очки: <span id="score">0</span> | Лучший: <span id="best">0</span></div>
+    <div id="info">Очки: <span id="score">0</span> | Лучший: <span id="best">0</span> | Дистанция: <span id="distance">0</span></div>
     <canvas id="canvas"></canvas>
 
     <div id="controls">
@@ -95,12 +98,13 @@
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
         const bestEl = document.getElementById('best');
+        const distanceEl = document.getElementById('distance');
         const gameOverEl = document.getElementById('gameOver');
         const finalScoreEl = document.getElementById('finalScore');
         const leftBtn = document.getElementById('leftBtn');
         const rightBtn = document.getElementById('rightBtn');
 
-        // Адаптивный размер канваса
+        // Адаптивный канвас
         function resizeCanvas() {
             canvas.width = canvas.offsetWidth * devicePixelRatio;
             canvas.height = canvas.offsetHeight * devicePixelRatio;
@@ -112,13 +116,16 @@
         let angle = 0;
         let angularVelocity = 0;
         let score = 0;
-        let best = parseInt(localStorage.getItem('snowboardBestMobile') || '0');
+        let distance = 0;
+        let scrollOffset = 0;
+        let speed = 250;
+        let best = parseInt(localStorage.getItem('snowboardBest3D') || '0');
         let gameRunning = true;
         let lastTime = 0;
 
         bestEl.textContent = best;
 
-        // Сенсорные кнопки
+        // Кнопки
         let leftPressed = false;
         let rightPressed = false;
 
@@ -138,7 +145,11 @@
             angle = 0;
             angularVelocity = 0;
             score = 0;
+            distance = 0;
+            scrollOffset = 0;
+            speed = 250;
             scoreEl.textContent = 0;
+            distanceEl.textContent = 0;
             gameRunning = true;
             gameOverEl.style.display = 'none';
             requestAnimationFrame(loop);
@@ -150,7 +161,7 @@
             if (score > best) {
                 best = Math.floor(score);
                 bestEl.textContent = best;
-                localStorage.setItem('snowboardBestMobile', best);
+                localStorage.setItem('snowboardBest3D', best);
             }
             gameOverEl.style.display = 'block';
         }
@@ -159,7 +170,7 @@
             if (!gameRunning) return;
 
             if (lastTime) {
-                const dt = Math.min((time - lastTime) / 1000, 0.1); // ограничиваем dt для стабильности
+                const dt = Math.min((time - lastTime) / 1000, 0.1);
                 update(dt);
             }
             lastTime = time;
@@ -169,74 +180,205 @@
         }
 
         function update(dt) {
-            // Постепенное смещение баланса
-            angularVelocity += 0.35 * dt;
+            // Скольжение по рейлу
+            scrollOffset += speed * dt;
+            distance += speed * dt;
+            speed += 10 * dt; // Ускорение
 
-            // Управление
-            if (leftPressed)  angularVelocity -= 3.0 * dt;
-            if (rightPressed) angularVelocity += 3.0 * dt;
+            // Волны на рейле (случайные помехи)
+            angularVelocity += Math.sin(scrollOffset * 0.005) * 0.4 * dt;
+
+            // Управление балансом
+            if (leftPressed) angularVelocity -= 3.5 * dt;
+            if (rightPressed) angularVelocity += 3.5 * dt;
+
+            // Трение
+            angularVelocity *= 0.95;
 
             angle += angularVelocity;
 
-            if (Math.abs(angle) > Math.PI / 4.5) { // чуть строже, чем 45°
+            // Game over
+            if (Math.abs(angle) > Math.PI / 4.2) {
                 gameOver();
                 return;
             }
 
-            score += dt * 100;
+            // Очки: расстояние + бонус за баланс
+            const balanceBonus = Math.max(0, 1 - Math.abs(angle) * 2);
+            score += (distance / 10 + balanceBonus * 50) * dt;
             scoreEl.textContent = Math.floor(score);
+            distanceEl.textContent = Math.floor(distance);
+        }
+
+        function drawMountain(x, baseY, offset, color) {
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            ctx.save();
+            ctx.translate(offset, 0);
+            ctx.fillStyle = color || 'rgba(80,120,80,0.6)';
+            ctx.beginPath();
+            ctx.moveTo(x - 150, h);
+            ctx.lineTo(x, baseY);
+            ctx.lineTo(x + 150, h);
+            ctx.fill();
+            // Снег
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath();
+            ctx.moveTo(x - 100, baseY);
+            ctx.lineTo(x + 20, baseY - 15);
+            ctx.lineTo(x + 100, baseY);
+            ctx.fill();
+            ctx.restore();
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             const w = canvas.offsetWidth;
             const h = canvas.offsetHeight;
+            ctx.clearRect(0, 0, w, h);
 
-            // Рейл
-            ctx.strokeStyle = '#444';
-            ctx.lineWidth = 16;
+            // Небо
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, h * 0.4);
+            skyGradient.addColorStop(0, '#87CEEB');
+            skyGradient.addColorStop(1, '#B0E0E6');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, w, h * 0.4);
+
+            // Облака
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
             ctx.beginPath();
-            ctx.moveTo(30, h * 0.65);
-            ctx.lineTo(w - 30, h * 0.65);
+            ctx.arc(w * 0.2 + Math.sin(scrollOffset * 0.001) * 20, h * 0.15, 40, 0, Math.PI * 2);
+            ctx.arc(w * 0.2 + 50 + Math.sin(scrollOffset * 0.001) * 20, h * 0.15, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Горы с параллаксом
+            const parallax1 = scrollOffset * 0.2;
+            const parallax2 = scrollOffset * 0.1;
+            drawMountain(w * 0.1, h * 0.75, parallax1);
+            drawMountain(w * 0.6, h * 0.7, -parallax1 * 0.5);
+            drawMountain(w * 0.8, h * 0.8, parallax2);
+
+            // Снег внизу
+            const snowGradient = ctx.createLinearGradient(0, h * 0.6, 0, h);
+            snowGradient.addColorStop(0, '#f0f8ff');
+            snowGradient.addColorStop(1, '#e8f4ff');
+            ctx.fillStyle = snowGradient;
+            ctx.fillRect(0, h * 0.6, w, h * 0.4);
+
+            // Рейл (перспектива)
+            const railYStart = h * 0.82;
+            const railYEnd = h * 0.28;
+            const railLength = railYStart - railYEnd;
+
+            // Основной рейл
+            const railGradient = ctx.createLinearGradient(w/2, railYStart, w/2, railYEnd);
+            railGradient.addColorStop(0, '#888');
+            railGradient.addColorStop(1, '#444');
+            ctx.strokeStyle = railGradient;
+            ctx.lineWidth = 35;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(w / 2, railYStart);
+            ctx.lineTo(w / 2, railYEnd);
             ctx.stroke();
 
-            // Сноубордист
+            // Текстура рейла (движущиеся метки/искры)
             ctx.save();
-            ctx.translate(w / 2, h * 0.62);
+            const texSpeed = scrollOffset * 4;
+            for (let i = 0; i < 25; i++) {
+                const prog = i / 25;
+                const y = railYStart - prog * railLength;
+                const size = 12 * (1 - prog);
+                const texPos = (texSpeed + i * 35) % 70;
+                if (texPos < 25) {
+                    ctx.fillStyle = `rgba(255,170,0,${0.8 - prog})`;
+                    ctx.fillRect(w / 2 - size / 2, y - 4, size, 8);
+                }
+            }
+            ctx.restore();
+
+            // Сноубордист (детальная модель, вид от 3-го лица сбоку)
+            const riderY = railYStart + 5;
+            ctx.save();
+            ctx.translate(w / 2, riderY);
+            ctx.rotate(angle);
 
             // Доска
-            ctx.rotate(angle);
-            ctx.fillStyle = '#ff6600';
-            ctx.fillRect(-120, -12, 240, 24);
-            ctx.fillStyle = '#222';
-            ctx.fillRect(-120, -6, 240, 12);
+            ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetY = 8;
+            ctx.fillStyle = '#cc4400';
+            ctx.fillRect(-90, -10, 180, 20);
+            ctx.fillStyle = '#aa3300';
+            ctx.fillRect(-90, -6, 180, 12);
+            // Bindings
+            ctx.fillStyle = '#666';
+            ctx.fillRect(-60, -14, 25, 10);
+            ctx.fillRect(35, -14, 25, 10);
 
-            // Тело сноубордиста
-            ctx.rotate(-angle);
+            // Тело следует за наклоном слабее
+            ctx.rotate(-angle * 0.6);
+            // Штаны
+            ctx.fillStyle = '#0044aa';
+            ctx.fillRect(-22, -25, 44, 35);
+            // Куртка
+            ctx.fillStyle = '#ff4444';
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.fillRect(-28, -75, 56, 55);
+            // Рукава
+            ctx.fillRect(-38, -60, 16, 35);
+            ctx.fillRect(22, -60, 16, 35);
+            // Шлем/голова
             ctx.fillStyle = '#3388ff';
             ctx.beginPath();
-            ctx.arc(0, -50, 25, 0, Math.PI * 2); // голова
+            ctx.arc(0, -92, 22, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillRect(-15, -30, 30, 60); // тело
-
-            // Руки
-            ctx.strokeStyle = '#3388ff';
-            ctx.lineWidth = 12;
+            ctx.fillStyle = '#ffdd99';
             ctx.beginPath();
-            ctx.moveTo(-30, -15);
-            ctx.lineTo(30, -15);
+            ctx.arc(0, -95, 18, 0, Math.PI * 2);
+            ctx.fill();
+            // Очки
+            ctx.fillStyle = '#000';
+            ctx.fillRect(-8, -98, 16, 6);
+
+            // Руки (махи для баланса)
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 12;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            const handSwing = Math.sin(scrollOffset * 0.02) * 10 * (1 - Math.abs(angle));
+            ctx.moveTo(-32, -55 + handSwing);
+            ctx.lineTo(-55, -30 - handSwing * 0.5);
+            ctx.moveTo(32, -55 - handSwing);
+            ctx.lineTo(55, -30 + handSwing * 0.5);
             ctx.stroke();
 
             ctx.restore();
 
-            // Подсказка в начале игры
-            if (score < 100) {
-                ctx.font = '22px Arial';
-                ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                ctx.textAlign = 'center';
-                ctx.fillText('Держи баланс кнопками!', w/2, 60);
+            // Искры от скольжения (больше при наклоне)
+            if (Math.abs(angle) > 0.03) {
+                ctx.fillStyle = '#ffff44';
+                ctx.shadowColor = '#ffff00';
+                ctx.shadowBlur = 10;
+                for (let i = 0; i < 8; i++) {
+                    const sparkX = (Math.random() - 0.5) * 40 * Math.abs(angle);
+                    const sparkY = riderY + 15 + Math.random() * 15;
+                    ctx.fillRect(w / 2 + sparkX - 3, sparkY, 6, 6);
+                }
             }
+
+            // Подсказка
+            if (distance < 200) {
+                ctx.font = 'bold 24px Arial';
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.textAlign = 'center';
+                ctx.fillText('◀ ▶ Держи баланс на рейле!', w / 2, 70);
+            }
+
+            // Скорость индикатор
+            ctx.font = '20px Arial';
+            ctx.fillStyle = 'rgba(255,0,0,0.8)';
+            ctx.fillText('Скорость: ' + Math.floor(speed / 5), w - 100, 40);
         }
 
         requestAnimationFrame(loop);
