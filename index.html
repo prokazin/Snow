@@ -9,35 +9,39 @@
 </head>
 <body>
     <div class="container">
-        <h1>Симулятор трейдинга криптовалют</h1>
+        <h1>Крипто Трейдер</h1>
         
         <div class="balance">
-            <p>Баланс USD: <span id="usd-balance">10000.00</span></p>
-            <p>Общая стоимость портфеля: <span id="total-value">10000.00</span> USD</p>
+            <p>Баланс: <span id="usd-balance">10000.00</span> USD</p>
+            <p>Портфель: <span id="total-value">10000.00</span> USD</p>
         </div>
         
-        <h2>Рынок (реальные цены из CoinGecko)</h2>
+        <h2>Рынок</h2>
         <table id="market-table">
             <thead>
                 <tr>
                     <th>Монета</th>
-                    <th>Цена (USD)</th>
+                    <th>Цена</th>
                     <th>В портфеле</th>
-                    <th>Действия</th>
+                    <th>Купить / Продать</th>
                 </tr>
             </thead>
-            <tbody>
-                <!-- Заполняется JS -->
-            </tbody>
+            <tbody></tbody>
         </table>
-        
-        <div id="chart-container" style="display: none;">
-            <h3>График цен за 24 часа: <span id="chart-coin"></span></h3>
-            <canvas id="price-chart" width="600" height="300"></canvas>
-            <button onclick="hideChart()">Закрыть график</button>
+
+        <!-- График всегда видимый -->
+        <div class="chart-section">
+            <h3>График за 24 часа</h3>
+            <div class="coin-buttons">
+                <button onclick="changeChart('dogecoin', 'Dogecoin')" class="active" id="btn-doge">DOGE</button>
+                <button onclick="changeChart('cardano', 'Cardano')" id="btn-ada">ADA</button>
+                <button onclick="changeChart('vechain', 'VeChain')" id="btn-vet">VET</button>
+            </div>
+            <canvas id="price-chart"></canvas>
+            <p class="chart-label" id="chart-coin">Dogecoin (DOGE)</p>
         </div>
         
-        <h2>История транзакций</h2>
+        <h2>История</h2>
         <ul id="history"></ul>
     </div>
     
