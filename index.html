@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Баланс на рейле</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
+            font-family: Arial, sans-serif;
+            touch-action: manipulation;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            flex: 1;
+            margin: 10px;
+            max-height: 60vh;
+        }
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px;
+            gap: 10px;
+        }
+        .btn {
+            flex: 1;
+            padding: 20px;
+            font-size: 28px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            user-select: none;
+            active: { opacity: 0.7; }
+        }
+        #info {
+            text-align: center;
+            font-size: 24px;
+            color: #333;
+            margin: 5px 10px;
+            font-weight: bold;
+        }
+        #gameOver {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 30px 40px;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 32px;
+            display: none;
+            z-index: 100;
+            max-width: 90%;
+        }
+        button {
+            margin-top: 25px;
+            padding: 15px 30px;
+            font-size: 24px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Очки: <span id="score">0</span> | Лучший: <span id="best">0</span></div>
+    <canvas id="canvas"></canvas>
+
+    <div id="controls">
+        <button class="btn" id="leftBtn">◀</button>
+        <button class="btn" id="rightBtn">▶</button>
+    </div>
+
+    <div id="gameOver">
+        <div>Падение!</div>
+        <div style="font-size:28px; margin:15px 0;">Очки: <span id="finalScore">0</span></div>
+        <button onclick="restart()">Играть снова</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const bestEl = document.getElementById('best');
+        const gameOverEl = document.getElementById('gameOver');
+        const finalScoreEl = document.getElementById('finalScore');
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+
+        // Адаптивный размер канваса
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth * devicePixelRatio;
+            canvas.height = canvas.offsetHeight * devicePixelRatio;
+            ctx.scale(devicePixelRatio, devicePixelRatio);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let angle = 0;
+        let angularVelocity = 0;
+        let score = 0;
+        let best = parseInt(localStorage.getItem('snowboardBestMobile') || '0');
+        let gameRunning = true;
+        let lastTime = 0;
+
+        bestEl.textContent = best;
+
+        // Сенсорные кнопки
+        let leftPressed = false;
+        let rightPressed = false;
+
+        leftBtn.addEventListener('touchstart', e => { e.preventDefault(); leftPressed = true; });
+        leftBtn.addEventListener('touchend', () => leftPressed = false);
+        leftBtn.addEventListener('mousedown', () => leftPressed = true);
+        leftBtn.addEventListener('mouseup', () => leftPressed = false);
+        leftBtn.addEventListener('mouseleave', () => leftPressed = false);
+
+        rightBtn.addEventListener('touchstart', e => { e.preventDefault(); rightPressed = true; });
+        rightBtn.addEventListener('touchend', () => rightPressed = false);
+        rightBtn.addEventListener('mousedown', () => rightPressed = true);
+        rightBtn.addEventListener('mouseup', () => rightPressed = false);
+        rightBtn.addEventListener('mouseleave', () => rightPressed = false);
+
+        function restart() {
+            angle = 0;
+            angularVelocity = 0;
+            score = 0;
+            scoreEl.textContent = 0;
+            gameRunning = true;
+            gameOverEl.style.display = 'none';
+            requestAnimationFrame(loop);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreEl.textContent = Math.floor(score);
+            if (score > best) {
+                best = Math.floor(score);
+                bestEl.textContent = best;
+                localStorage.setItem('snowboardBestMobile', best);
+            }
+            gameOverEl.style.display = 'block';
+        }
+
+        function loop(time) {
+            if (!gameRunning) return;
+
+            if (lastTime) {
+                const dt = Math.min((time - lastTime) / 1000, 0.1); // ограничиваем dt для стабильности
+                update(dt);
+            }
+            lastTime = time;
+
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update(dt) {
+            // Постепенное смещение баланса
+            angularVelocity += 0.35 * dt;
+
+            // Управление
+            if (leftPressed)  angularVelocity -= 3.0 * dt;
+            if (rightPressed) angularVelocity += 3.0 * dt;
+
+            angle += angularVelocity;
+
+            if (Math.abs(angle) > Math.PI / 4.5) { // чуть строже, чем 45°
+                gameOver();
+                return;
+            }
+
+            score += dt * 100;
+            scoreEl.textContent = Math.floor(score);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+
+            // Рейл
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 16;
+            ctx.beginPath();
+            ctx.moveTo(30, h * 0.65);
+            ctx.lineTo(w - 30, h * 0.65);
+            ctx.stroke();
+
+            // Сноубордист
+            ctx.save();
+            ctx.translate(w / 2, h * 0.62);
+
+            // Доска
+            ctx.rotate(angle);
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(-120, -12, 240, 24);
+            ctx.fillStyle = '#222';
+            ctx.fillRect(-120, -6, 240, 12);
+
+            // Тело сноубордиста
+            ctx.rotate(-angle);
+            ctx.fillStyle = '#3388ff';
+            ctx.beginPath();
+            ctx.arc(0, -50, 25, 0, Math.PI * 2); // голова
+            ctx.fill();
+            ctx.fillRect(-15, -30, 30, 60); // тело
+
+            // Руки
+            ctx.strokeStyle = '#3388ff';
+            ctx.lineWidth = 12;
+            ctx.beginPath();
+            ctx.moveTo(-30, -15);
+            ctx.lineTo(30, -15);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Подсказка в начале игры
+            if (score < 100) {
+                ctx.font = '22px Arial';
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.textAlign = 'center';
+                ctx.fillText('Держи баланс кнопками!', w/2, 60);
+            }
+        }
+
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
