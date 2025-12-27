@@ -2,349 +2,45 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Баланс на рейле 3D</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
-            font-family: Arial, sans-serif;
-            touch-action: manipulation;
-            overflow: hidden;
-        }
-        canvas {
-            display: block;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-            flex: 1;
-            margin: 10px;
-            max-height: 60vh;
-        }
-        #controls {
-            display: flex;
-            justify-content: space-between;
-            margin: 10px;
-            gap: 10px;
-        }
-        .btn {
-            flex: 1;
-            padding: 20px;
-            font-size: 28px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            border: none;
-            border-radius: 15px;
-            user-select: none;
-        }
-        .btn:active {
-            opacity: 0.7;
-        }
-        #info {
-            text-align: center;
-            font-size: 24px;
-            color: #333;
-            margin: 5px 10px;
-            font-weight: bold;
-        }
-        #gameOver {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.9);
-            color: white;
-            padding: 30px 40px;
-            border-radius: 20px;
-            text-align: center;
-            font-size: 32px;
-            display: none;
-            z-index: 100;
-            max-width: 90%;
-        }
-        button {
-            margin-top: 25px;
-            padding: 15px 30px;
-            font-size: 24px;
-            background: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 15px;
-            cursor: pointer;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Крипто Трейдинг Симулятор</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div id="info">Очки: <span id="score">0</span> | Лучший: <span id="best">0</span> | Дистанция: <span id="distance">0</span></div>
-    <canvas id="canvas"></canvas>
-
-    <div id="controls">
-        <button class="btn" id="leftBtn">◀</button>
-        <button class="btn" id="rightBtn">▶</button>
+    <div class="container">
+        <h1>Симулятор трейдинга криптовалют</h1>
+        
+        <div class="balance">
+            <p>Баланс USD: <span id="usd-balance">10000.00</span></p>
+            <p>Общая стоимость портфеля: <span id="total-value">10000.00</span> USD</p>
+        </div>
+        
+        <h2>Рынок (реальные цены из CoinGecko)</h2>
+        <table id="market-table">
+            <thead>
+                <tr>
+                    <th>Монета</th>
+                    <th>Цена (USD)</th>
+                    <th>В портфеле</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Заполняется JS -->
+            </tbody>
+        </table>
+        
+        <div id="chart-container" style="display: none;">
+            <h3>График цен за 24 часа: <span id="chart-coin"></span></h3>
+            <canvas id="price-chart" width="600" height="300"></canvas>
+            <button onclick="hideChart()">Закрыть график</button>
+        </div>
+        
+        <h2>История транзакций</h2>
+        <ul id="history"></ul>
     </div>
-
-    <div id="gameOver">
-        <div>Падение!</div>
-        <div style="font-size:28px; margin:15px 0;">Очки: <span id="finalScore">0</span></div>
-        <button onclick="restart()">Играть снова</button>
-    </div>
-
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const bestEl = document.getElementById('best');
-        const distanceEl = document.getElementById('distance');
-        const gameOverEl = document.getElementById('gameOver');
-        const finalScoreEl = document.getElementById('finalScore');
-        const leftBtn = document.getElementById('leftBtn');
-        const rightBtn = document.getElementById('rightBtn');
-
-        // Загрузка спрайта сноубордиста
-        const riderImg = new Image();
-        riderImg.src = 'ride.JPG'; // Убедись, что файл лежит в той же папке
-
-        // Адаптивный канвас
-        function resizeCanvas() {
-            canvas.width = canvas.offsetWidth * devicePixelRatio;
-            canvas.height = canvas.offsetHeight * devicePixelRatio;
-            ctx.scale(devicePixelRatio, devicePixelRatio);
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        let angle = 0;
-        let angularVelocity = 0;
-        let score = 0;
-        let distance = 0;
-        let scrollOffset = 0;
-        let speed = 250;
-        let best = parseInt(localStorage.getItem('snowboardBest3D') || '0');
-        let gameRunning = true;
-        let lastTime = 0;
-
-        bestEl.textContent = best;
-
-        // Кнопки
-        let leftPressed = false;
-        let rightPressed = false;
-
-        leftBtn.addEventListener('touchstart', e => { e.preventDefault(); leftPressed = true; });
-        leftBtn.addEventListener('touchend', () => leftPressed = false);
-        leftBtn.addEventListener('mousedown', () => leftPressed = true);
-        leftBtn.addEventListener('mouseup', () => leftPressed = false);
-        leftBtn.addEventListener('mouseleave', () => leftPressed = false);
-
-        rightBtn.addEventListener('touchstart', e => { e.preventDefault(); rightPressed = true; });
-        rightBtn.addEventListener('touchend', () => rightPressed = false);
-        rightBtn.addEventListener('mousedown', () => rightPressed = true);
-        rightBtn.addEventListener('mouseup', () => rightPressed = false);
-        rightBtn.addEventListener('mouseleave', () => rightPressed = false);
-
-        function restart() {
-            angle = 0;
-            angularVelocity = 0;
-            score = 0;
-            distance = 0;
-            scrollOffset = 0;
-            speed = 250;
-            scoreEl.textContent = 0;
-            distanceEl.textContent = 0;
-            gameRunning = true;
-            gameOverEl.style.display = 'none';
-            requestAnimationFrame(loop);
-        }
-
-        function gameOver() {
-            gameRunning = false;
-            finalScoreEl.textContent = Math.floor(score);
-            if (score > best) {
-                best = Math.floor(score);
-                bestEl.textContent = best;
-                localStorage.setItem('snowboardBest3D', best);
-            }
-            gameOverEl.style.display = 'block';
-        }
-
-        function loop(time) {
-            if (!gameRunning) return;
-
-            if (lastTime) {
-                const dt = Math.min((time - lastTime) / 1000, 0.1);
-                update(dt);
-            }
-            lastTime = time;
-
-            draw();
-            requestAnimationFrame(loop);
-        }
-
-        function update(dt) {
-            scrollOffset += speed * dt;
-            distance += speed * dt;
-            speed += 10 * dt;
-
-            angularVelocity += Math.sin(scrollOffset * 0.005) * 0.4 * dt;
-
-            if (leftPressed) angularVelocity -= 3.5 * dt;
-            if (rightPressed) angularVelocity += 3.5 * dt;
-
-            angularVelocity *= 0.95;
-            angle += angularVelocity;
-
-            if (Math.abs(angle) > Math.PI / 4.2) {
-                gameOver();
-                return;
-            }
-
-            const balanceBonus = Math.max(0, 1 - Math.abs(angle) * 2);
-            score += (distance / 10 + balanceBonus * 50) * dt;
-            scoreEl.textContent = Math.floor(score);
-            distanceEl.textContent = Math.floor(distance);
-        }
-
-        function drawMountain(x, baseY, offset, color) {
-            const w = canvas.offsetWidth;
-            const h = canvas.offsetHeight;
-            ctx.save();
-            ctx.translate(offset, 0);
-            ctx.fillStyle = color || 'rgba(80,120,80,0.6)';
-            ctx.beginPath();
-            ctx.moveTo(x - 150, h);
-            ctx.lineTo(x, baseY);
-            ctx.lineTo(x + 150, h);
-            ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.beginPath();
-            ctx.moveTo(x - 100, baseY);
-            ctx.lineTo(x + 20, baseY - 15);
-            ctx.lineTo(x + 100, baseY);
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function draw() {
-            const w = canvas.offsetWidth;
-            const h = canvas.offsetHeight;
-            ctx.clearRect(0, 0, w, h);
-
-            // Небо
-            const skyGradient = ctx.createLinearGradient(0, 0, 0, h * 0.4);
-            skyGradient.addColorStop(0, '#87CEEB');
-            skyGradient.addColorStop(1, '#B0E0E6');
-            ctx.fillStyle = skyGradient;
-            ctx.fillRect(0, 0, w, h * 0.4);
-
-            // Облака
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
-            ctx.beginPath();
-            ctx.arc(w * 0.2 + Math.sin(scrollOffset * 0.001) * 20, h * 0.15, 40, 0, Math.PI * 2);
-            ctx.arc(w * 0.2 + 50 + Math.sin(scrollOffset * 0.001) * 20, h * 0.15, 30, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Горы
-            const parallax1 = scrollOffset * 0.2;
-            const parallax2 = scrollOffset * 0.1;
-            drawMountain(w * 0.1, h * 0.75, parallax1);
-            drawMountain(w * 0.6, h * 0.7, -parallax1 * 0.5);
-            drawMountain(w * 0.8, h * 0.8, parallax2);
-
-            // Снег внизу
-            const snowGradient = ctx.createLinearGradient(0, h * 0.6, 0, h);
-            snowGradient.addColorStop(0, '#f0f8ff');
-            snowGradient.addColorStop(1, '#e8f4ff');
-            ctx.fillStyle = snowGradient;
-            ctx.fillRect(0, h * 0.6, w, h * 0.4);
-
-            // Рейл
-            const railYStart = h * 0.82;
-            const railYEnd = h * 0.28;
-            const railLength = railYStart - railYEnd;
-
-            const railGradient = ctx.createLinearGradient(w/2, railYStart, w/2, railYEnd);
-            railGradient.addColorStop(0, '#888');
-            railGradient.addColorStop(1, '#444');
-            ctx.strokeStyle = railGradient;
-            ctx.lineWidth = 35;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(w / 2, railYStart);
-            ctx.lineTo(w / 2, railYEnd);
-            ctx.stroke();
-
-            // Текстура рейла
-            ctx.save();
-            const texSpeed = scrollOffset * 4;
-            for (let i = 0; i < 25; i++) {
-                const prog = i / 25;
-                const y = railYStart - prog * railLength;
-                const size = 12 * (1 - prog);
-                const texPos = (texSpeed + i * 35) % 70;
-                if (texPos < 25) {
-                    ctx.fillStyle = `rgba(255,170,0,${0.8 - prog})`;
-                    ctx.fillRect(w / 2 - size / 2, y - 4, size, 8);
-                }
-            }
-            ctx.restore();
-
-            // Сноубордист — реалистичный спрайт
-            const riderY = railYStart + 8;
-            ctx.save();
-            ctx.translate(w / 2, riderY);
-            ctx.rotate(angle * 0.7); // тело наклоняется чуть меньше доски
-            ctx.shadowColor = 'rgba(0,0,0,0.4)';
-            ctx.shadowBlur = 20;
-            ctx.shadowOffsetY = 10;
-
-            // Рисуем спрайт (если изображение загрузилось)
-            if (riderImg.complete && riderImg.naturalHeight !== 0) {
-                ctx.drawImage(riderImg, -110, -140, 220, 280);
-            } else {
-                // Запасной вариант на случай, если картинка не загрузится
-                ctx.fillStyle = '#3388ff';
-                ctx.fillRect(-20, -100, 40, 100);
-                ctx.beginPath();
-                ctx.arc(0, -120, 25, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.restore();
-
-            // Искры при сильном наклоне
-            if (Math.abs(angle) > 0.05) {
-                ctx.fillStyle = '#ffff44';
-                ctx.shadowColor = '#ffff00';
-                ctx.shadowBlur = 10;
-                for (let i = 0; i < 10; i++) {
-                    const sparkX = (Math.random() - 0.5) * 60 * Math.abs(angle);
-                    const sparkY = riderY + 20 + Math.random() * 20;
-                    ctx.fillRect(w / 2 + sparkX - 3, sparkY, 6, 6);
-                }
-                ctx.shadowBlur = 0;
-            }
-
-            // Подсказка в начале
-            if (distance < 200) {
-                ctx.font = 'bold 24px Arial';
-                ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                ctx.textAlign = 'center';
-                ctx.fillText('◀ ▶ Держи баланс на рейле!', w / 2, 70);
-            }
-
-            // Индикатор скорости
-            ctx.font = '20px Arial';
-            ctx.fillStyle = 'rgba(255,0,0,0.8)';
-            ctx.textAlign = 'right';
-            ctx.fillText('Скорость: ' + Math.floor(speed / 5), w - 20, 40);
-        }
-
-        requestAnimationFrame(loop);
-    </script>
+    
+    <script src="script.js"></script>
 </body>
 </html>
